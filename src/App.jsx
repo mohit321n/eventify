@@ -10,6 +10,8 @@ function App() {
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [editingId, setEditingId] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
 
   useEffect(() => {
     localStorage.setItem('eventify_events', JSON.stringify(events));
@@ -40,6 +42,18 @@ function App() {
     setEvents((prevEvents) => prevEvents.filter((event) => event.id !== id));
   };
 
+  const startEditing = (event) => {
+    setEditingId(event.id);
+    setEditFormData(event);
+  };
+
+  const saveEdit = (id) => {
+    setEvents((prevEvents) =>
+      prevEvents.map((event) => (event.id === id ? editFormData : event))
+    );
+    setEditingId(null);
+  };
+
   const categories = ['All', 'Tech', 'Music', 'Business'];
 
   const filteredEvents = events.filter((event) => {
@@ -49,12 +63,31 @@ function App() {
     return matchesSearch && matchesCategory;
   });
 
+  // Calculate Dashboard Metrics
+  const totalRsvps = events.reduce((sum, e) => sum + (e.rsvpCount || 0), 0);
+
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <header style={{ textAlign: 'center', marginBottom: '30px' }}>
-        <h1 style={{ color: '#4F46E5', fontSize: '2.5rem' }}>Eventify</h1>
-        <p>Discover & Explore Local & Virtual Events</p>
+      <header style={{ textAlign: 'center', marginBottom: '20px' }}>
+        <h1 style={{ color: '#4F46E5', fontSize: '2.5rem', marginBottom: '5px' }}>Eventify</h1>
+        <p style={{ margin: 0, color: '#6B7280' }}>Discover & Explore Local & Virtual Events</p>
       </header>
+
+      {/* Analytics Dashboard */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '25px' }}>
+        <div style={{ backgroundColor: '#EEF2FF', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+          <h2 style={{ margin: 0, color: '#4F46E5' }}>{events.length}</h2>
+          <span style={{ fontSize: '13px', color: '#4B5563' }}>Total Events</span>
+        </div>
+        <div style={{ backgroundColor: '#ECFDF5', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+          <h2 style={{ margin: 0, color: '#10B981' }}>{totalRsvps}</h2>
+          <span style={{ fontSize: '13px', color: '#4B5563' }}>Total RSVPs</span>
+        </div>
+        <div style={{ backgroundColor: '#FEF3C7', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+          <h2 style={{ margin: 0, color: '#D97706' }}>{events.filter(e => e.isRsvped).length}</h2>
+          <span style={{ fontSize: '13px', color: '#4B5563' }}>Attending</span>
+        </div>
+      </div>
 
       <EventForm onAddEvent={handleAddEvent} />
 
@@ -101,58 +134,113 @@ function App() {
                 backgroundColor: '#fff'
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ margin: '0 0 8px 0', color: '#1F2937' }}>{event.title}</h3>
-                <span
-                  style={{
-                    backgroundColor: '#EEF2FF',
-                    color: '#4F46E5',
-                    padding: '4px 8px',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  {event.category}
-                </span>
-              </div>
-              <p style={{ margin: '4px 0', color: '#6B7280', fontSize: '14px' }}>
-                📅 {event.date} | 📍 {event.location}
-              </p>
-              <p style={{ color: '#374151', marginTop: '10px' }}>{event.description}</p>
+              {editingId === event.id ? (
+                /* Edit Mode Form */
+                <div style={{ display: 'grid', gap: '10px' }}>
+                  <input
+                    type="text"
+                    value={editFormData.title}
+                    onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                  />
+                  <input
+                    type="text"
+                    value={editFormData.location}
+                    onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                  />
+                  <textarea
+                    value={editFormData.description}
+                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => saveEdit(event.id)}
+                      style={{ backgroundColor: '#10B981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      style={{ backgroundColor: '#6B7280', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* View Mode */
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: '0 0 8px 0', color: '#1F2937' }}>{event.title}</h3>
+                    <span
+                      style={{
+                        backgroundColor: '#EEF2FF',
+                        color: '#4F46E5',
+                        padding: '4px 8px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      {event.category}
+                    </span>
+                  </div>
+                  <p style={{ margin: '4px 0', color: '#6B7280', fontSize: '14px' }}>
+                    📅 {event.date} | 📍 {event.location}
+                  </p>
+                  <p style={{ color: '#374151', marginTop: '10px' }}>{event.description}</p>
 
-              {/* RSVP and Delete Buttons */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
-                <button
-                  onClick={() => handleToggleRsvp(event.id)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    backgroundColor: event.isRsvped ? '#10B981' : '#E5E7EB',
-                    color: event.isRsvped ? '#fff' : '#374151',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {event.isRsvped ? '✓ Going' : 'RSVP'} ({event.rsvpCount || 0})
-                </button>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
+                    <button
+                      onClick={() => handleToggleRsvp(event.id)}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        backgroundColor: event.isRsvped ? '#10B981' : '#E5E7EB',
+                        color: event.isRsvped ? '#fff' : '#374151',
+                        fontWeight: 'bold',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {event.isRsvped ? '✓ Going' : 'RSVP'} ({event.rsvpCount || 0})
+                    </button>
 
-                <button
-                  onClick={() => handleDeleteEvent(event.id)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    backgroundColor: '#EF4444',
-                    color: '#fff',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => startEditing(event)}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          backgroundColor: '#F59E0B',
+                          color: '#fff',
+                          fontWeight: 'bold',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteEvent(event.id)}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          backgroundColor: '#EF4444',
+                          color: '#fff',
+                          fontWeight: 'bold',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ))
         ) : (
