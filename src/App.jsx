@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { initialEvents } from './eventsData';
+import EventForm from './EventForm';
 
 function App() {
-  const [events] = useState(initialEvents);
+  const [events, setEvents] = useState(initialEvents);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+
+  const handleAddEvent = (newEvent) => {
+    setEvents([newEvent, ...events]);
+  };
 
   const categories = ['All', 'Tech', 'Music', 'Business'];
 
@@ -21,6 +26,9 @@ function App() {
         <h1 style={{ color: '#4F46E5', fontSize: '2.5rem' }}>Eventify</h1>
         <p>Discover & Explore Local & Virtual Events</p>
       </header>
+
+      {/* New Event Form */}
+      <EventForm onAddEvent={handleAddEvent} />
 
       {/* Controls: Search and Filter */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
