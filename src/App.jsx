@@ -2,9 +2,18 @@ import { useState, useEffect } from 'react';
 import { initialEvents } from './eventsData';
 import EventForm from './EventForm';
 import EventModal from './EventModal';
-import { Search, Calendar, MapPin, Users, Trash2, Sparkles, CheckCircle2, Sun, Moon, Heart, Clock } from 'lucide-react';
+import AuthModal from './AuthModal';
+import { Search, Calendar, MapPin, Users, Trash2, Sparkles, CheckCircle2, Sun, Moon, Heart, Clock, UserCheck, LogOut } from 'lucide-react';
 
 function App() {
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem('eventify_user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+
   const [events, setEvents] = useState(() => {
     const savedEvents = localStorage.getItem('eventify_events');
     return savedEvents ? JSON.parse(savedEvents) : initialEvents;
@@ -34,6 +43,14 @@ function App() {
   }, [savedEventIds]);
 
   useEffect(() => {
+    if (user) {
+      localStorage.setItem('eventify_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('eventify_user');
+    }
+  }, [user]);
+
+  useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
       localStorage.setItem('eventify_theme', 'dark');
@@ -43,39 +60,66 @@ function App() {
     }
   }, [darkMode]);
 
-  const handleAddEvent = (newEvent) => {
-    setEvents((prevEvents) => [{ ...newEvent, rsvpCount: 0, isRsvped: false }, ...prevEvents]);
-  };
-
-  const handleToggleRsvp = (id) => {
-    setEvents((prevEvents) =>
-      prevEvents.map((event) => {
-        if (event.id === id) {
-          const isRsvped = !event.isRsvped;
-          const currentCount = event.rsvpCount || 0;
-          return {
-            ...event,
-            isRsvped,
-            rsvpCount: isRsvped ? currentCount + 1 : currentCount - 1
-          };
-        }
-        return event;
-      })
-    );
-
-    if (selectedEvent && selectedEvent.id === id) {
-      setSelectedEvent((prev) => ({
-        ...prev,
-        isRsvped: !prev.isRsvped,
-        rsvpCount: prev.isRsvped ? (prev.rsvpCount || 1) - 1 : (prev.rsvpCount || 0) + 1
-      }));
+  const requireAuth = (actionCallback) => {
+    if (!user) {
+      setPendingAction(() => actionCallback);
+      setIsAuthOpen(true);
+    } else {
+      actionCallback();
     }
   };
 
+  const handleLogin = (userData) => {
+    setUser(userData);
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+  };
+
+  const handleAddEvent = (newEvent) => {
+    requireAuth(() => {
+      setEvents((prevEvents) => [{ ...newEvent, rsvpCount: 0, isRsvped: false }, ...prevEvents]);
+    });
+  };
+
+  const handleToggleRsvp = (id) => {
+    requireAuth(() => {
+      setEvents((prevEvents) =>
+        prevEvents.map((event) => {
+          if (event.id === id) {
+            const isRsvped = !event.isRsvped;
+            const currentCount = event.rsvpCount || 0;
+            return {
+              ...event,
+              isRsvped,
+              rsvpCount: isRsvped ? currentCount + 1 : currentCount - 1
+            };
+          }
+          return event;
+        })
+      );
+
+      if (selectedEvent && selectedEvent.id === id) {
+        setSelectedEvent((prev) => ({
+          ...prev,
+          isRsvped: !prev.isRsvped,
+          rsvpCount: prev.isRsvped ? (prev.rsvpCount || 1) - 1 : (prev.rsvpCount || 0) + 1
+        }));
+      }
+    });
+  };
+
   const handleToggleBookmark = (id) => {
-    setSavedEventIds((prev) =>
-      prev.includes(id) ? prev.filter((favId) => favId !== id) : [...prev, id]
-    );
+    requireAuth(() => {
+      setSavedEventIds((prev) =>
+        prev.includes(id) ? prev.filter((favId) => favId !== id) : [...prev, id]
+      );
+    });
   };
 
   const handleDeleteEvent = (id) => {
@@ -92,23 +136,15 @@ function App() {
 
     const eventDate = new Date(eventDateStr);
     const today = new Date();
-    
-    // Normalize time portions for accurate date comparison
     today.setHours(0, 0, 0, 0);
 
-    if (isNaN(eventDate.getTime())) return true; // Fallback if date string isn't standard
+    if (isNaN(eventDate.getTime())) return true;
 
     const diffDays = (eventDate - today) / (1000 * 60 * 60 * 24);
 
-    if (selectedDateFilter === 'Today') {
-      return diffDays >= 0 && diffDays < 1;
-    }
-    if (selectedDateFilter === 'This Week') {
-      return diffDays >= 0 && diffDays <= 7;
-    }
-    if (selectedDateFilter === 'Upcoming') {
-      return diffDays >= 0;
-    }
+    if (selectedDateFilter === 'Today') return diffDays >= 0 && diffDays < 1;
+    if (selectedDateFilter === 'This Week') return diffDays >= 0 && diffDays <= 7;
+    if (selectedDateFilter === 'Upcoming') return diffDays >= 0;
     return true;
   };
 
@@ -138,6 +174,27 @@ function App() {
           </div>
           
           <div className="flex items-center gap-3">
+            {user ? (
+              <div className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-800 px-3 py-1.5 rounded-xl text-xs font-semibold">
+                <UserCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="text-slate-700 dark:text-slate-200">{user.name}</span>
+                <button
+                  onClick={handleLogout}
+                  className="p-1 text-slate-400 hover:text-red-500 transition-colors ml-1"
+                  title="Log Out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAuthOpen(true)}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
+              >
+                Sign In
+              </button>
+            )}
+
             <button
               onClick={() => setShowSavedOnly(!showSavedOnly)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
@@ -190,7 +247,6 @@ function App() {
       <main className="max-w-6xl mx-auto px-6 mt-6">
         <EventForm onAddEvent={handleAddEvent} />
 
-        {/* Search & Filter Section */}
         <div className="space-y-4 mb-8">
           <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
             <div className="relative w-full md:w-80">
@@ -204,7 +260,6 @@ function App() {
               />
             </div>
 
-            {/* Category Pills */}
             <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
               {categories.map((cat) => (
                 <button
@@ -222,7 +277,6 @@ function App() {
             </div>
           </div>
 
-          {/* Date Range Pills */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2 border-t border-slate-100 dark:border-slate-800 pt-3">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mr-2">
               <Clock className="w-3.5 h-3.5" /> Date:
@@ -339,6 +393,15 @@ function App() {
         event={selectedEvent}
         onClose={() => setSelectedEvent(null)}
         onToggleRsvp={handleToggleRsvp}
+      />
+
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => {
+          setIsAuthOpen(false);
+          setPendingAction(null);
+        }}
+        onLogin={handleLogin}
       />
     </div>
   );
