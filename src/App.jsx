@@ -3,7 +3,6 @@ import { initialEvents } from './eventsData';
 import EventForm from './EventForm';
 
 function App() {
-  // Read saved events from localStorage on initial load, or fallback to initialEvents
   const [events, setEvents] = useState(() => {
     const savedEvents = localStorage.getItem('eventify_events');
     return savedEvents ? JSON.parse(savedEvents) : initialEvents;
@@ -12,13 +11,33 @@ function App() {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
-  // Save events to localStorage whenever the events array changes
   useEffect(() => {
     localStorage.setItem('eventify_events', JSON.stringify(events));
   }, [events]);
 
   const handleAddEvent = (newEvent) => {
-    setEvents((prevEvents) => [newEvent, ...prevEvents]);
+    setEvents((prevEvents) => [{ ...newEvent, rsvpCount: 0, isRsvped: false }, ...prevEvents]);
+  };
+
+  const handleToggleRsvp = (id) => {
+    setEvents((prevEvents) =>
+      prevEvents.map((event) => {
+        if (event.id === id) {
+          const isRsvped = !event.isRsvped;
+          const currentCount = event.rsvpCount || 0;
+          return {
+            ...event,
+            isRsvped,
+            rsvpCount: isRsvped ? currentCount + 1 : currentCount - 1
+          };
+        }
+        return event;
+      })
+    );
+  };
+
+  const handleDeleteEvent = (id) => {
+    setEvents((prevEvents) => prevEvents.filter((event) => event.id !== id));
   };
 
   const categories = ['All', 'Tech', 'Music', 'Business'];
@@ -37,10 +56,9 @@ function App() {
         <p>Discover & Explore Local & Virtual Events</p>
       </header>
 
-      {/* Form to submit new events */}
       <EventForm onAddEvent={handleAddEvent} />
 
-      {/* Controls: Search and Category Filter */}
+      {/* Controls: Search and Filter */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <input
           type="text"
@@ -69,7 +87,7 @@ function App() {
         </div>
       </div>
 
-      {/* Event List View */}
+      {/* Event Cards Grid */}
       <div style={{ display: 'grid', gap: '15px' }}>
         {filteredEvents.length > 0 ? (
           filteredEvents.map((event) => (
@@ -79,7 +97,8 @@ function App() {
                 border: '1px solid #E5E7EB',
                 borderRadius: '8px',
                 padding: '15px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                backgroundColor: '#fff'
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -101,6 +120,39 @@ function App() {
                 📅 {event.date} | 📍 {event.location}
               </p>
               <p style={{ color: '#374151', marginTop: '10px' }}>{event.description}</p>
+
+              {/* RSVP and Delete Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
+                <button
+                  onClick={() => handleToggleRsvp(event.id)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: event.isRsvped ? '#10B981' : '#E5E7EB',
+                    color: event.isRsvped ? '#fff' : '#374151',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {event.isRsvped ? '✓ Going' : 'RSVP'} ({event.rsvpCount || 0})
+                </button>
+
+                <button
+                  onClick={() => handleDeleteEvent(event.id)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: '#EF4444',
+                    color: '#fff',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))
         ) : (
