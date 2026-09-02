@@ -3,7 +3,8 @@ import { initialEvents } from './eventsData';
 import EventForm from './EventForm';
 import EventModal from './EventModal';
 import AuthModal from './AuthModal';
-import { Search, Calendar, MapPin, Users, Trash2, Sparkles, CheckCircle2, Sun, Moon, Heart, Clock, UserCheck, LogOut } from 'lucide-react';
+import { Toaster, toast } from 'react-hot-toast';
+import { Search, Calendar, MapPin, Users, Trash2, Sparkles, CheckCircle2, Sun, Moon, Heart, UserCheck, LogOut, LayoutDashboard, Bookmark, Ticket } from 'lucide-react';
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -13,42 +14,47 @@ function App() {
 
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
-
-  const [events, setEvents] = useState(() => {
-    const savedEvents = localStorage.getItem('eventify_events');
-    return savedEvents ? JSON.parse(savedEvents) : initialEvents;
-  });
+  const [events, setEvents] = useState(initialEvents);
+  const [savedEventIds, setSavedEventIds] = useState([]);
+  const [rsvpedEventIds, setRsvpedEventIds] = useState([]);
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedDateFilter, setSelectedDateFilter] = useState('All');
   const [selectedEvent, setSelectedEvent] = useState(null);
-
-  const [savedEventIds, setSavedEventIds] = useState(() => {
-    const stored = localStorage.getItem('eventify_saved');
-    return stored ? JSON.parse(stored) : [];
-  });
-  const [showSavedOnly, setShowSavedOnly] = useState(false);
-
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('eventify_theme') === 'dark';
-  });
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'rsvped', 'saved'
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('eventify_theme') === 'dark');
 
   useEffect(() => {
-    localStorage.setItem('eventify_events', JSON.stringify(events));
-  }, [events]);
-
-  useEffect(() => {
-    localStorage.setItem('eventify_saved', JSON.stringify(savedEventIds));
-  }, [savedEventIds]);
-
-  useEffect(() => {
-    if (user) {
+    if (user?.id) {
       localStorage.setItem('eventify_user', JSON.stringify(user));
+      fetch(`http://localhost:5000/api/auth/user-data/${user.id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setSavedEventIds(data.savedEvents || []);
+          setRsvpedEventIds(data.rsvpedEvents || []);
+        })
+        .catch((err) => console.error(err));
     } else {
       localStorage.removeItem('eventify_user');
+      localStorage.removeItem('eventify_token');
+      setSavedEventIds([]);
+      setRsvpedEventIds([]);
+      setActiveTab('all');
     }
   }, [user]);
+
+  const syncUserData = (newSaved, newRsvped) => {
+    if (!user?.id) return;
+    fetch('http://localhost:5000/api/auth/sync-user-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user.id,
+        savedEvents: newSaved,
+        rsvpedEvents: newRsvped,
+      }),
+    }).catch((err) => console.error(err));
+  };
 
   useEffect(() => {
     if (darkMode) {
@@ -64,6 +70,7 @@ function App() {
     if (!user) {
       setPendingAction(() => actionCallback);
       setIsAuthOpen(true);
+      toast('Please sign in to continue', { icon: '🔒' });
     } else {
       actionCallback();
     }
@@ -79,96 +86,62 @@ function App() {
 
   const handleLogout = () => {
     setUser(null);
-  };
-
-  const handleAddEvent = (newEvent) => {
-    requireAuth(() => {
-      setEvents((prevEvents) => [{ ...newEvent, rsvpCount: 0, isRsvped: false }, ...prevEvents]);
-    });
+    toast.success('Logged out successfully');
   };
 
   const handleToggleRsvp = (id) => {
     requireAuth(() => {
-      setEvents((prevEvents) =>
-        prevEvents.map((event) => {
-          if (event.id === id) {
-            const isRsvped = !event.isRsvped;
-            const currentCount = event.rsvpCount || 0;
-            return {
-              ...event,
-              isRsvped,
-              rsvpCount: isRsvped ? currentCount + 1 : currentCount - 1
-            };
-          }
-          return event;
-        })
-      );
+      const isRsvped = rsvpedEventIds.includes(id);
+      const updatedRsvps = isRsvped
+        ? rsvpedEventIds.filter((eventId) => eventId !== id)
+        : [...rsvpedEventIds, id];
 
-      if (selectedEvent && selectedEvent.id === id) {
-        setSelectedEvent((prev) => ({
-          ...prev,
-          isRsvped: !prev.isRsvped,
-          rsvpCount: prev.isRsvped ? (prev.rsvpCount || 1) - 1 : (prev.rsvpCount || 0) + 1
-        }));
-      }
+      setRsvpedEventIds(updatedRsvps);
+      syncUserData(savedEventIds, updatedRsvps);
+      toast.success(isRsvped ? 'RSVP cancelled' : 'RSVP confirmed! See you there 🎉');
     });
   };
 
   const handleToggleBookmark = (id) => {
     requireAuth(() => {
-      setSavedEventIds((prev) =>
-        prev.includes(id) ? prev.filter((favId) => favId !== id) : [...prev, id]
-      );
+      const isSaved = savedEventIds.includes(id);
+      const updatedSaved = isSaved
+        ? savedEventIds.filter((eventId) => eventId !== id)
+        : [...savedEventIds, id];
+
+      setSavedEventIds(updatedSaved);
+      syncUserData(updatedSaved, rsvpedEventIds);
+      toast.success(isSaved ? 'Removed from saved' : 'Event saved to your account!');
     });
   };
 
-  const handleDeleteEvent = (id) => {
-    setEvents((prevEvents) => prevEvents.filter((event) => event.id !== id));
-    setSavedEventIds((prev) => prev.filter((favId) => favId !== id));
-    if (selectedEvent?.id === id) setSelectedEvent(null);
-  };
-
   const categories = ['All', 'Tech', 'Music', 'Business', 'Arts'];
-  const dateFilters = ['All', 'Today', 'This Week', 'Upcoming'];
-
-  const matchesDateRange = (eventDateStr) => {
-    if (selectedDateFilter === 'All') return true;
-
-    const eventDate = new Date(eventDateStr);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (isNaN(eventDate.getTime())) return true;
-
-    const diffDays = (eventDate - today) / (1000 * 60 * 60 * 24);
-
-    if (selectedDateFilter === 'Today') return diffDays >= 0 && diffDays < 1;
-    if (selectedDateFilter === 'This Week') return diffDays >= 0 && diffDays <= 7;
-    if (selectedDateFilter === 'Upcoming') return diffDays >= 0;
-    return true;
-  };
 
   const filteredEvents = events.filter((event) => {
     const matchesSearch = event.title.toLowerCase().includes(search.toLowerCase()) ||
                           event.description.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || event.category === selectedCategory;
-    const matchesSaved = !showSavedOnly || savedEventIds.includes(event.id);
-    const matchesTime = matchesDateRange(event.date);
+    
+    let matchesTab = true;
+    if (activeTab === 'saved') matchesTab = savedEventIds.includes(event.id);
+    if (activeTab === 'rsvped') matchesTab = rsvpedEventIds.includes(event.id);
 
-    return matchesSearch && matchesCategory && matchesSaved && matchesTime;
+    return matchesSearch && matchesCategory && matchesTab;
   });
 
-  const totalRsvps = events.reduce((sum, e) => sum + (e.rsvpCount || 0), 0);
-
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-sans pb-16 transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-sans pb-16 transition-colors">
+      {/* Toast Notifications */}
+      <Toaster position="top-right" />
+
+      {/* Navigation */}
       <nav className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-700 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="bg-indigo-600 text-white p-2 rounded-xl">
               <Sparkles className="w-5 h-5" />
             </div>
-            <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+            <span className="text-xl font-extrabold tracking-tight text-indigo-600 dark:text-indigo-400">
               Eventify
             </span>
           </div>
@@ -177,232 +150,180 @@ function App() {
             {user ? (
               <div className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-800 px-3 py-1.5 rounded-xl text-xs font-semibold">
                 <UserCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                <span className="text-slate-700 dark:text-slate-200">{user.name}</span>
-                <button
-                  onClick={handleLogout}
-                  className="p-1 text-slate-400 hover:text-red-500 transition-colors ml-1"
-                  title="Log Out"
-                >
+                <span className="text-slate-800 dark:text-white font-bold">{user.name}</span>
+                <button onClick={handleLogout} className="p-1 hover:text-red-500 cursor-pointer ml-1" title="Log Out">
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
-              <button
-                onClick={() => setIsAuthOpen(true)}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
-              >
+              <button onClick={() => setIsAuthOpen(true)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl cursor-pointer shadow-sm">
                 Sign In
               </button>
             )}
 
-            <button
-              onClick={() => setShowSavedOnly(!showSavedOnly)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                showSavedOnly
-                  ? 'bg-rose-500 text-white shadow-md shadow-rose-200 dark:shadow-none'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
-              }`}
-            >
-              <Heart className={`w-4 h-4 ${showSavedOnly ? 'fill-white' : ''}`} />
-              <span>Saved ({savedEventIds.length})</span>
-            </button>
-
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors cursor-pointer"
-              title="Toggle Theme"
-            >
+            <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 cursor-pointer">
               {darkMode ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
             </button>
           </div>
         </div>
       </nav>
 
-      <div className="bg-gradient-to-b from-indigo-50/50 dark:from-indigo-950/20 to-transparent py-12 px-6">
+      {/* Dynamic Header Section */}
+      <div className="bg-gradient-to-b from-indigo-50/50 dark:from-indigo-950/20 to-transparent py-10 px-6">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight mb-4">
-            Discover Events That Spark Passion.
-          </h1>
-          <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-8">
-            Explore premier conferences, live acoustic concerts, and high-impact networking meetups around you.
-          </p>
+          {user ? (
+            <>
+              <span className="inline-block px-3 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 rounded-full text-xs font-bold uppercase tracking-wider mb-3">
+                Logged in Dashboard
+              </span>
+              <h1 className="text-3xl sm:text-4xl font-black mb-2 text-slate-900 dark:text-white">
+                Welcome back, {user.name}!
+              </h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Manage your upcoming event RSVPs and saved events below.</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-4xl font-black mb-4">Discover Events That Spark Passion.</h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xl mx-auto mb-6">
+                Explore premier conferences, live acoustic concerts, and high-impact networking meetups around you.
+              </p>
+            </>
+          )}
 
+          {/* Stats Bar */}
           <div className="grid grid-cols-3 gap-4 max-w-xl mx-auto bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
             <div>
               <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{events.length}</div>
-              <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">Active Events</div>
+              <div className="text-xs text-slate-400 uppercase font-semibold">Total Events</div>
             </div>
             <div className="border-x border-slate-100 dark:border-slate-700">
-              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalRsvps}</div>
-              <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total RSVPs</div>
+              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{rsvpedEventIds.length}</div>
+              <div className="text-xs text-slate-400 uppercase font-semibold">Your RSVPs</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-amber-500">{savedEventIds.length}</div>
-              <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">Bookmarked</div>
+              <div className="text-xs text-slate-400 uppercase font-semibold">Bookmarked</div>
             </div>
           </div>
         </div>
       </div>
 
       <main className="max-w-6xl mx-auto px-6 mt-6">
-        <EventForm onAddEvent={handleAddEvent} />
+        <EventForm onAddEvent={(newEvent) => requireAuth(() => {
+          setEvents([newEvent, ...events]);
+          toast.success('New event created successfully!');
+        })} />
 
-        <div className="space-y-4 mb-8">
-          <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-            <div className="relative w-full md:w-80">
-              <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search title or keywords..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm dark:text-white"
-              />
-            </div>
+        {/* Dashboard Tabs for Authenticated Users */}
+        {user && (
+          <div className="flex border-b border-slate-200 dark:border-slate-700 mb-6 gap-6">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'all'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              <span>All Events</span>
+            </button>
 
-            <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                    selectedCategory === cat
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:shadow-none'
-                      : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+            <button
+              onClick={() => setActiveTab('rsvped')}
+              className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'rsvped'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Ticket className="w-4 h-4" />
+              <span>My RSVPs ({rsvpedEventIds.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('saved')}
+              className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'saved'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Bookmark className="w-4 h-4" />
+              <span>Saved Events ({savedEventIds.length})</span>
+            </button>
+          </div>
+        )}
+
+        {/* Search & Categories */}
+        <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-6">
+          <div className="relative w-full md:w-80">
+            <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search title or keywords..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none dark:text-white"
+            />
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 border-t border-slate-100 dark:border-slate-800 pt-3">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mr-2">
-              <Clock className="w-3.5 h-3.5" /> Date:
-            </span>
-            {dateFilters.map((df) => (
+          <div className="flex gap-2 overflow-x-auto w-full md:w-auto">
+            {categories.map((cat) => (
               <button
-                key={df}
-                onClick={() => setSelectedDateFilter(df)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                  selectedDateFilter === df
-                    ? 'bg-slate-800 text-white dark:bg-indigo-500 dark:text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  selectedCategory === cat
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                 }`}
               >
-                {df}
+                {cat}
               </button>
             ))}
           </div>
         </div>
 
+        {/* Event Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredEvents.length > 0 ? (
             filteredEvents.map((event) => {
-              const isBookmarked = savedEventIds.includes(event.id);
+              const isSaved = savedEventIds.includes(event.id);
+              const isRsvped = rsvpedEventIds.includes(event.id);
               return (
-                <div
-                  key={event.id}
-                  onClick={() => setSelectedEvent(event)}
-                  className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group cursor-pointer"
-                >
-                  <div className="relative h-48 w-full overflow-hidden bg-slate-100 dark:bg-slate-700">
-                    <img
-                      src={event.image}
-                      alt={event.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <span className="absolute top-3 left-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-indigo-600 dark:text-indigo-400 text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-                      {event.category}
-                    </span>
-                    
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleBookmark(event.id);
-                      }}
-                      className="absolute top-3 right-3 p-2 rounded-full bg-slate-900/60 hover:bg-slate-900 text-white backdrop-blur-md transition-all cursor-pointer"
-                      title={isBookmarked ? "Remove Bookmark" : "Save Event"}
-                    >
-                      <Heart className={`w-4 h-4 ${isBookmarked ? 'fill-rose-500 text-rose-500' : 'text-white'}`} />
-                    </button>
-                  </div>
-
-                  <div className="p-5 flex-1 flex flex-col">
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 line-clamp-1">{event.title}</h3>
-
-                    <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400 mb-3">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-indigo-500" />
-                        <span>{event.date} {event.time && `• ${event.time}`}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-indigo-500" />
-                        <span className="line-clamp-1">{event.location}</span>
-                      </div>
-                    </div>
-
-                    <p className="text-slate-600 dark:text-slate-300 text-xs line-clamp-2 leading-relaxed mb-4 flex-1">
-                      {event.description}
-                    </p>
-
-                    <div className="pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleRsvp(event.id);
-                        }}
-                        className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          event.isRsvped
-                            ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200 dark:shadow-none'
-                            : 'bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-slate-600'
-                        }`}
-                      >
-                        {event.isRsvped ? <CheckCircle2 className="w-4 h-4" /> : <Users className="w-4 h-4" />}
-                        <span>{event.isRsvped ? 'Going' : 'RSVP'}</span>
-                        <span className="opacity-80">({event.rsvpCount || 0})</span>
-                      </button>
-
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteEvent(event.id);
-                        }}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
-                        title="Delete Event"
-                      >
-                        <Trash2 className="w-4 h-4" />
+                <div key={event.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{event.category}</span>
+                      <button onClick={() => handleToggleBookmark(event.id)} className="cursor-pointer">
+                        <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} />
                       </button>
                     </div>
+                    <h3 className="text-lg font-bold mb-2 text-slate-900 dark:text-white">{event.title}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">{event.description}</p>
                   </div>
+                  <button
+                    onClick={() => handleToggleRsvp(event.id)}
+                    className={`w-full py-2.5 rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-2 transition-all ${
+                      isRsvped ? 'bg-emerald-500 text-white' : 'bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-300'
+                    }`}
+                  >
+                    {isRsvped ? <CheckCircle2 className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+                    <span>{isRsvped ? 'Going' : 'RSVP'}</span>
+                  </button>
                 </div>
               );
             })
           ) : (
-            <div className="col-span-full py-16 text-center">
-              <p className="text-slate-400 text-sm">
-                {showSavedOnly ? 'You have no saved events yet.' : 'No events match your search criteria.'}
-              </p>
+            <div className="col-span-full py-12 text-center text-slate-400 text-sm">
+              No events found in this view.
             </div>
           )}
         </div>
       </main>
 
-      <EventModal
-        event={selectedEvent}
-        onClose={() => setSelectedEvent(null)}
-        onToggleRsvp={handleToggleRsvp}
-      />
-
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => {
-          setIsAuthOpen(false);
-          setPendingAction(null);
-        }}
-        onLogin={handleLogin}
-      />
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} onLogin={handleLogin} />
     </div>
   );
 }
