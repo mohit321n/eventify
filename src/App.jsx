@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { initialEvents } from './eventsData';
 import EventForm from './EventForm';
+import { Search, Calendar, MapPin, Users, Trash2, Sparkles, CheckCircle2 } from 'lucide-react';
 
 function App() {
   const [events, setEvents] = useState(() => {
@@ -10,8 +11,6 @@ function App() {
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [editingId, setEditingId] = useState(null);
-  const [editFormData, setEditFormData] = useState({});
 
   useEffect(() => {
     localStorage.setItem('eventify_events', JSON.stringify(events));
@@ -42,19 +41,7 @@ function App() {
     setEvents((prevEvents) => prevEvents.filter((event) => event.id !== id));
   };
 
-  const startEditing = (event) => {
-    setEditingId(event.id);
-    setEditFormData(event);
-  };
-
-  const saveEdit = (id) => {
-    setEvents((prevEvents) =>
-      prevEvents.map((event) => (event.id === id ? editFormData : event))
-    );
-    setEditingId(null);
-  };
-
-  const categories = ['All', 'Tech', 'Music', 'Business'];
+  const categories = ['All', 'Tech', 'Music', 'Business', 'Arts'];
 
   const filteredEvents = events.filter((event) => {
     const matchesSearch = event.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -63,190 +50,155 @@ function App() {
     return matchesSearch && matchesCategory;
   });
 
-  // Calculate Dashboard Metrics
   const totalRsvps = events.reduce((sum, e) => sum + (e.rsvpCount || 0), 0);
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <header style={{ textAlign: 'center', marginBottom: '20px' }}>
-        <h1 style={{ color: '#4F46E5', fontSize: '2.5rem', marginBottom: '5px' }}>Eventify</h1>
-        <p style={{ margin: 0, color: '#6B7280' }}>Discover & Explore Local & Virtual Events</p>
-      </header>
-
-      {/* Analytics Dashboard */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '25px' }}>
-        <div style={{ backgroundColor: '#EEF2FF', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-          <h2 style={{ margin: 0, color: '#4F46E5' }}>{events.length}</h2>
-          <span style={{ fontSize: '13px', color: '#4B5563' }}>Total Events</span>
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-16">
+      <nav className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="bg-indigo-600 text-white p-2 rounded-xl">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+              Eventify
+            </span>
+          </div>
+          <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
+            <span className="bg-slate-100 px-3 py-1.5 rounded-full">📍 Global Network</span>
+          </div>
         </div>
-        <div style={{ backgroundColor: '#ECFDF5', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-          <h2 style={{ margin: 0, color: '#10B981' }}>{totalRsvps}</h2>
-          <span style={{ fontSize: '13px', color: '#4B5563' }}>Total RSVPs</span>
-        </div>
-        <div style={{ backgroundColor: '#FEF3C7', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-          <h2 style={{ margin: 0, color: '#D97706' }}>{events.filter(e => e.isRsvped).length}</h2>
-          <span style={{ fontSize: '13px', color: '#4B5563' }}>Attending</span>
-        </div>
-      </div>
+      </nav>
 
-      <EventForm onAddEvent={handleAddEvent} />
+      <div className="bg-gradient-to-b from-indigo-50/50 to-transparent py-12 px-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight mb-4">
+            Discover Events That Spark Passion.
+          </h1>
+          <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto mb-8">
+            Explore premier conferences, live acoustic concerts, and high-impact networking meetups around you.
+          </p>
 
-      {/* Controls: Search and Filter */}
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
-        <input
-          type="text"
-          placeholder="Search events..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
-        />
-        <div style={{ display: 'flex', gap: '5px' }}>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              style={{
-                padding: '10px 15px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: selectedCategory === cat ? '#4F46E5' : '#E5E7EB',
-                color: selectedCategory === cat ? '#fff' : '#000',
-                cursor: 'pointer'
-              }}
-            >
-              {cat}
-            </button>
-          ))}
+          <div className="grid grid-cols-3 gap-4 max-w-xl mx-auto bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+            <div>
+              <div className="text-2xl font-bold text-indigo-600">{events.length}</div>
+              <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">Active Events</div>
+            </div>
+            <div className="border-x border-slate-100">
+              <div className="text-2xl font-bold text-emerald-600">{totalRsvps}</div>
+              <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total RSVPs</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-amber-500">{events.filter(e => e.isRsvped).length}</div>
+              <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">Attending</div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Event Cards Grid */}
-      <div style={{ display: 'grid', gap: '15px' }}>
-        {filteredEvents.length > 0 ? (
-          filteredEvents.map((event) => (
-            <div
-              key={event.id}
-              style={{
-                border: '1px solid #E5E7EB',
-                borderRadius: '8px',
-                padding: '15px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                backgroundColor: '#fff'
-              }}
-            >
-              {editingId === event.id ? (
-                /* Edit Mode Form */
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  <input
-                    type="text"
-                    value={editFormData.title}
-                    onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+      <main className="max-w-6xl mx-auto px-6 mt-6">
+        <EventForm onAddEvent={handleAddEvent} />
+
+        <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-8">
+          <div className="relative w-full md:w-80">
+            <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search title or keywords..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+            />
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  selectedCategory === cat
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredEvents.length > 0 ? (
+            filteredEvents.map((event) => (
+              <div
+                key={event.id}
+                className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group"
+              >
+                <div className="relative h-48 w-full overflow-hidden bg-slate-100">
+                  <img
+                    src={event.image}
+                    alt={event.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  <input
-                    type="text"
-                    value={editFormData.location}
-                    onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-                  />
-                  <textarea
-                    value={editFormData.description}
-                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-                  />
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-md text-indigo-600 text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                    {event.category}
+                  </span>
+                  <span className="absolute top-3 right-3 bg-slate-900/80 text-white text-xs font-semibold px-2.5 py-1 rounded-full backdrop-blur-md">
+                    {event.price || 'Free'}
+                  </span>
+                </div>
+
+                <div className="p-5 flex-1 flex flex-col">
+                  <h3 className="text-lg font-bold text-slate-900 mb-2 line-clamp-1">{event.title}</h3>
+
+                  <div className="space-y-1.5 text-xs text-slate-500 mb-3">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-indigo-500" />
+                      <span>{event.date} {event.time && `• ${event.time}`}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-indigo-500" />
+                      <span className="line-clamp-1">{event.location}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed mb-4 flex-1">
+                    {event.description}
+                  </p>
+
+                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
                     <button
-                      onClick={() => saveEdit(event.id)}
-                      style={{ backgroundColor: '#10B981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+                      onClick={() => handleToggleRsvp(event.id)}
+                      className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        event.isRsvped
+                          ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200'
+                          : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                      }`}
                     >
-                      Save
+                      {event.isRsvped ? <CheckCircle2 className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+                      <span>{event.isRsvped ? 'Going' : 'RSVP'}</span>
+                      <span className="opacity-80">({event.rsvpCount || 0})</span>
                     </button>
+
                     <button
-                      onClick={() => setEditingId(null)}
-                      style={{ backgroundColor: '#6B7280', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+                      onClick={() => handleDeleteEvent(event.id)}
+                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                      title="Delete Event"
                     >
-                      Cancel
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
-              ) : (
-                /* View Mode */
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: '0 0 8px 0', color: '#1F2937' }}>{event.title}</h3>
-                    <span
-                      style={{
-                        backgroundColor: '#EEF2FF',
-                        color: '#4F46E5',
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      {event.category}
-                    </span>
-                  </div>
-                  <p style={{ margin: '4px 0', color: '#6B7280', fontSize: '14px' }}>
-                    📅 {event.date} | 📍 {event.location}
-                  </p>
-                  <p style={{ color: '#374151', marginTop: '10px' }}>{event.description}</p>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
-                    <button
-                      onClick={() => handleToggleRsvp(event.id)}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        backgroundColor: event.isRsvped ? '#10B981' : '#E5E7EB',
-                        color: event.isRsvped ? '#fff' : '#374151',
-                        fontWeight: 'bold',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {event.isRsvped ? '✓ Going' : 'RSVP'} ({event.rsvpCount || 0})
-                    </button>
-
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={() => startEditing(event)}
-                        style={{
-                          padding: '8px 12px',
-                          borderRadius: '6px',
-                          border: 'none',
-                          backgroundColor: '#F59E0B',
-                          color: '#fff',
-                          fontWeight: 'bold',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteEvent(event.id)}
-                        style={{
-                          padding: '8px 12px',
-                          borderRadius: '6px',
-                          border: 'none',
-                          backgroundColor: '#EF4444',
-                          color: '#fff',
-                          fontWeight: 'bold',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
+              </div>
+            ))
+          ) : (
+            <div className="col-span-full py-16 text-center">
+              <p className="text-slate-400 text-sm">No events match your search criteria.</p>
             </div>
-          ))
-        ) : (
-          <p style={{ textAlign: 'center', color: '#6B7280' }}>No events found matching your criteria.</p>
-        )}
-      </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
