@@ -1,14 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { initialEvents } from './eventsData';
 import EventForm from './EventForm';
 
 function App() {
-  const [events, setEvents] = useState(initialEvents);
+  // Read saved events from localStorage on initial load, or fallback to initialEvents
+  const [events, setEvents] = useState(() => {
+    const savedEvents = localStorage.getItem('eventify_events');
+    return savedEvents ? JSON.parse(savedEvents) : initialEvents;
+  });
+
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
+  // Save events to localStorage whenever the events array changes
+  useEffect(() => {
+    localStorage.setItem('eventify_events', JSON.stringify(events));
+  }, [events]);
+
   const handleAddEvent = (newEvent) => {
-    setEvents([newEvent, ...events]);
+    setEvents((prevEvents) => [newEvent, ...prevEvents]);
   };
 
   const categories = ['All', 'Tech', 'Music', 'Business'];
@@ -27,10 +37,10 @@ function App() {
         <p>Discover & Explore Local & Virtual Events</p>
       </header>
 
-      {/* New Event Form */}
+      {/* Form to submit new events */}
       <EventForm onAddEvent={handleAddEvent} />
 
-      {/* Controls: Search and Filter */}
+      {/* Controls: Search and Category Filter */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <input
           type="text"
@@ -59,7 +69,7 @@ function App() {
         </div>
       </div>
 
-      {/* Event Cards Grid */}
+      {/* Event List View */}
       <div style={{ display: 'grid', gap: '15px' }}>
         {filteredEvents.length > 0 ? (
           filteredEvents.map((event) => (
